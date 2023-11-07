@@ -44,7 +44,6 @@ public class Buff {
     int col_cnt;
     int max_prec = 0;
     static int batch_size = 1000;
-    boolean[] col_sparse_flag = new boolean[col_cnt]; // 标记每一列是否使用了稀疏编码
 
     byte[][] cols;
     
@@ -60,7 +59,16 @@ public class Buff {
     }
     
     private void deserialize() {
-
+        /* TODO read:
+         * max_prec
+         * int_width
+         * lower_bound
+         * col_cnt
+         * batch_size 
+         */
+        dec_width = PRECISION_MAP.get(max_prec);
+        whole_width = int_width + dec_width;
+        sparse_decode();
     }
     
 
@@ -202,7 +210,7 @@ public class Buff {
             }
 
             // get the int_len
-            int int_len = ((int) exp + 1) > 0 ? ((int) exp + 1) : 0;
+            int int_len = (exp + 1) > 0 ? ((int) exp + 1) : 0;
             System.out.println("int_len:" + int_len);
 
             // get the integer
@@ -332,8 +340,11 @@ public class Buff {
 
             // get the offset of integer
             long offset = integer_value - lower_bound;
-            System.out.println(
-                    "offset:" + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
+            if (int_width!=0)
+                System.out.println(
+                        "offset:" + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
+            else
+                System.out.println("offset: null");
 
             // get the bitpack result
             long bitpack = (offset << dec_width) | decimal;
@@ -385,8 +396,11 @@ public class Buff {
 
             // get the offset
             long offset = bitpack >>> dec_width;
-            System.out.println("offset:"
-                    + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
+            if (int_width!=0)
+                System.out.println(
+                        "offset:" + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
+            else
+                System.out.println("offset: null");
 
             // get the integer
             long integer = lower_bound + offset;
