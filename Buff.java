@@ -25,7 +25,7 @@ class Sparse_Result {
 
     }
     
-    private void deserialize() {
+    public void deserialize() {
         /*TODO read:
          * frequent_value
          * bitmap
@@ -451,7 +451,28 @@ public class Buff {
     }
     
     public void sparse_decode() {
-        
+        for (int j = 0; j < col_cnt; ++j) {
+            // TODO read: flag
+            boolean flag = false;
+
+            if (flag == false) {
+                // TODO read: col[j]
+            } else {
+                Sparse_Result result = new Sparse_Result(batch_size);
+                result.deserialize();
+                
+                int index, offset, vec_cnt=0;
+                for (int i = 0; i < batch_size; i++) {
+                    index = i / 8;
+                    offset = i % 8;
+                    if ((result.bitmap[index] & (1 << offset)) == 0) {
+                        cols[j][i] = result.frequent_value;
+                    } else {
+                        cols[j][i] = result.outliers.get(vec_cnt);
+                    }
+                }
+            }
+        }
     }
 
     public static void main(String[] args) {
