@@ -16,7 +16,8 @@ class Sparse_Result {
     }
 
     public static void serialize() {
-        /*TODO write:
+        /*
+         * TODO write:
          * frequent_value
          * bitmap
          * outliers.length
@@ -24,9 +25,10 @@ class Sparse_Result {
          */
 
     }
-    
+
     public void deserialize() {
-        /*TODO read:
+        /*
+         * TODO read:
          * frequent_value
          * bitmap
          * outliers.length
@@ -46,9 +48,10 @@ public class Buff {
     static int batch_size = 1000;
 
     byte[][] cols;
-    
+
     private void serialize() {
-        /* TODO write:
+        /*
+         * TODO write:
          * max_prec
          * int_width
          * lower_bound
@@ -57,20 +60,24 @@ public class Buff {
          */
         sparse_encode();
     }
-    
+
     private void deserialize() {
-        /* TODO read:
+        /*
+         * TODO read:
          * max_prec
          * int_width
          * lower_bound
          * col_cnt
-         * batch_size 
+         * batch_size
          */
         dec_width = PRECISION_MAP.get(max_prec);
-        whole_width = int_width + dec_width;
+        whole_width = int_width + dec_width + 1;
         sparse_decode();
     }
     
+    
+
+
 
     public Buff() {
         // init PRECISION_MAP
@@ -195,7 +202,7 @@ public class Buff {
             System.out.println("exp:" + exp);
 
             // get the mantissa
-            long mantissa = bits << 12 >>> 12;
+            long mantissa = bits & 0x000fffffffffffffL; // 0.11  1   -0.12  -1
             System.out.println("mantissa:" + String.format("%52s", Long.toBinaryString(mantissa)).replace(' ', '0'));
 
             // get the mantissa with implicit bit
@@ -212,22 +219,22 @@ public class Buff {
                 max_prec = prec;
             }
 
-            // get the int_len
-            int int_len = (exp + 1) > 0 ? ((int) exp + 1) : 0;
-            System.out.println("int_len:" + int_len);
+            // // get the int_len
+            // int int_len = (exp + 1) > 0 ? ((int) exp + 1) : 0;
+            // System.out.println("int_len:" + int_len);
 
             // get the integer
-            long integer = (52 - exp) > 63 ? 0 : (implicit_mantissa >>> (52 - exp));
-            long integer_value = integer;
-            if (sign != 0) {
-                integer_value = -integer;
-            }
-            if (int_len != 0)
-                System.out.println(
-                        "integer:"
-                                + String.format("%" + int_len + "s", Long.toBinaryString(integer)).replace(' ', '0'));
-            else
-                System.out.println("integer: null");
+            long integer = (52 - exp) > 52 ? 0 : (implicit_mantissa >>> (52 - exp));
+            long integer_value = (sign == 0) ? integer : -integer;
+
+            // if (int_len != 0)
+            // System.out.println(
+            // "integer:"
+            // + String.format("%" + int_len + "s", Long.toBinaryString(integer)).replace('
+            // ', '0'));
+            // else
+            // System.out.println("integer: null");
+
             // update the integer bound
             if (integer_value > upper_bound) {
                 upper_bound = integer_value;
@@ -236,6 +243,8 @@ public class Buff {
                 lower_bound = integer_value;
             }
         }
+
+        // 当整数为0时，符号位会丢失
 
         System.out.println("--------HEAD SAMPLE RESULT--------begin");
         System.out.println("lower_bound:" + lower_bound);
@@ -251,7 +260,7 @@ public class Buff {
         System.out.println("dec_width:" + dec_width);
 
         // get the whole_width
-        whole_width = int_width + dec_width;
+        whole_width = int_width + dec_width + 1;    // the sign bit cannot be omitted, because in that way +/-0.xxx will be ambiguous
         System.out.println("whole_width:" + whole_width);
 
         // get the col/bytes needed
@@ -287,7 +296,7 @@ public class Buff {
             System.out.println("exp:" + exp);
 
             // get the mantissa
-            long mantissa = bits << 12 >>> 12;
+            long mantissa = bits & 0x000fffffffffffffL;
             System.out.println("mantissa:" + String.format("%52s", Long.toBinaryString(mantissa)).replace(' ', '0'));
 
             // get the mantissa with implicit bit
@@ -343,14 +352,15 @@ public class Buff {
 
             // get the offset of integer
             long offset = integer_value - lower_bound;
-            if (int_width!=0)
+            if (int_width != 0)
                 System.out.println(
-                        "offset:" + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
+                        "offset:"
+                                + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
             else
                 System.out.println("offset: null");
 
             // get the bitpack result
-            long bitpack = (offset << dec_width) | decimal;
+            long bitpack = sign << (whole_width - 1) | (offset << dec_width) | decimal;
             System.out.println("bitpack:"
                     + String.format("%" + whole_width + "s", Long.toBinaryString(bitpack)).replace(' ', '0'));
 
@@ -398,8 +408,8 @@ public class Buff {
                     + String.format("%" + whole_width + "s", Long.toBinaryString(bitpack)).replace(' ', '0'));
 
             // get the offset
-            long offset = bitpack >>> dec_width;
-            if (int_width!=0)
+            long offset = (int_width != 0) ? (bitpack << 65 - whole_width >>> 64 - int_width) : 0;
+            if (int_width != 0)
                 System.out.println(
                         "offset:" + String.format("%" + int_width + "s", Long.toBinaryString(offset)).replace(' ', '0'));
             else
@@ -421,9 +431,10 @@ public class Buff {
 
             // get the mantissa with implicit bit
             long implicit_mantissa = (Math.abs(integer) << (53 - get_width_needed(Math.abs(integer))))
-                    | (integer==0 ? (modified_decimal << (53 - dec_width - get_width_needed(Math.abs(integer))))
-                            : (53 - dec_width - get_width_needed(Math.abs(integer))) >=0 ? (decimal << (53 - dec_width - get_width_needed(Math.abs(integer))))
-                                : (decimal >>> Math.abs(53 - dec_width - get_width_needed(Math.abs(integer)))));
+                    | (integer == 0 ? (modified_decimal << (53 - dec_width - get_width_needed(Math.abs(integer))))
+                            : (53 - dec_width - get_width_needed(Math.abs(integer))) >= 0
+                                    ? (decimal << (53 - dec_width - get_width_needed(Math.abs(integer))))
+                                    : (decimal >>> Math.abs(53 - dec_width - get_width_needed(Math.abs(integer)))));
             System.out.println("implicit_mantissa:"
                     + String.format("%53s", Long.toBinaryString(implicit_mantissa)).replace(' ', '0'));
 
@@ -433,7 +444,8 @@ public class Buff {
                     + String.format("%52s", Long.toBinaryString(mantissa)).replace(' ', '0'));
 
             // get the sign
-            long sign = integer >= 0 ? 0 : 1;
+            // long sign = integer >= 0 ? 0 : 1;
+            long sign = bitpack >>> (whole_width - 1);
 
             // get the exp
             long exp = integer != 0 ? (get_width_needed(Math.abs(integer)) + 1022)
@@ -467,7 +479,7 @@ public class Buff {
             }
         }
     }
-    
+
     public void sparse_decode() {
         for (int j = 0; j < col_cnt; ++j) {
             // TODO read: flag
@@ -478,8 +490,8 @@ public class Buff {
             } else {
                 Sparse_Result result = new Sparse_Result(batch_size);
                 result.deserialize();
-                
-                int index, offset, vec_cnt=0;
+
+                int index, offset, vec_cnt = 0;
                 for (int i = 0; i < batch_size; i++) {
                     index = i / 8;
                     offset = i % 8;
@@ -495,10 +507,21 @@ public class Buff {
 
     public static void main(String[] args) {
         Buff buff = new Buff();
-        String[] str_dbs = { "-1.5149263981838337", "2.5625971275331945", "0.1420381582929998", "-1.9920073010796728",
-                "-2.578224611730079" };
-        // { "0.1415", "199.12", 
-        //         "0.0000031", "0.0000000000000009" };// "0.00007", "0.000123", "0.000001", "0", "99.9999019","10.00001",
+        String[] str_dbs = {
+                "0.1",
+                "0.123",
+                "-0.1",
+                "326.52",
+                "1107.21",
+                "-211.1",
+                "9.34",
+                "-238.77",
+                "103.54",
+                "11111111110000.09"
+        };
+        // { "0.1415", "199.12",
+        // "0.0000031", "0.0000000000000009" };// "0.00007", "0.000123", "0.000001",
+        // "0", "99.9999019","10.00001",
         // };
         // double[] dbs = { 199.12,0.000123};//23.1415, 20.1, 29.12311 ,
         buff.head_sample(str_dbs);
