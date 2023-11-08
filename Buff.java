@@ -87,9 +87,12 @@ public class Buff {
         PRECISION_MAP.put(10, 35);
         PRECISION_MAP.put(11, 38);
         PRECISION_MAP.put(12, 50);
-        PRECISION_MAP.put(13, 10);
-        PRECISION_MAP.put(14, 10);
-        PRECISION_MAP.put(15, 10);
+        PRECISION_MAP.put(13, 52);
+        PRECISION_MAP.put(14, 52);
+        PRECISION_MAP.put(15, 52);
+        PRECISION_MAP.put(16, 52);
+        PRECISION_MAP.put(17, 52);
+        PRECISION_MAP.put(18, 52);
 
         // init LAST_MASK
         LAST_MASK.put(1, 0b1L);
@@ -417,9 +420,10 @@ public class Buff {
                     + String.format("%" + dec_width + "s", Long.toBinaryString(modified_decimal)).replace(' ', '0'));
 
             // get the mantissa with implicit bit
-            long implicit_mantissa = (integer << (53 - get_width_needed(integer)))
-                    | (integer == 0 ? (modified_decimal << (53 - dec_width - get_width_needed(integer)))
-                            : (decimal << (53 - dec_width - get_width_needed(integer))));
+            long implicit_mantissa = (Math.abs(integer) << (53 - get_width_needed(Math.abs(integer))))
+                    | (integer==0 ? (modified_decimal << (53 - dec_width - get_width_needed(Math.abs(integer))))
+                            : (53 - dec_width - get_width_needed(Math.abs(integer))) >=0 ? (decimal << (53 - dec_width - get_width_needed(Math.abs(integer))))
+                                : (decimal >>> Math.abs(53 - dec_width - get_width_needed(Math.abs(integer)))));
             System.out.println("implicit_mantissa:"
                     + String.format("%53s", Long.toBinaryString(implicit_mantissa)).replace(' ', '0'));
 
@@ -432,7 +436,7 @@ public class Buff {
             long sign = integer >= 0 ? 0 : 1;
 
             // get the exp
-            long exp = integer != 0 ? (get_width_needed(integer) + 1022)
+            long exp = integer != 0 ? (get_width_needed(Math.abs(integer)) + 1022)
                     : 1023 - (dec_width - get_width_needed(decimal) + 1);
             System.out.println("exp:" + String.format("%11s", Long.toBinaryString(exp)).replace(' ', '0'));
             System.out.println("exp_value:" + exp);
@@ -491,8 +495,10 @@ public class Buff {
 
     public static void main(String[] args) {
         Buff buff = new Buff();
-        String[] str_dbs = { "0.00007", "10.00001", "0.1415", "199.12", "0.000123", "0.000001", "0", "99.9999019",
-                "0.0000031", "0.0000009" };//
+        String[] str_dbs = { "-1.5149263981838337", "2.5625971275331945", "0.1420381582929998", "-1.9920073010796728",
+                "-2.578224611730079" };
+        // { "0.1415", "199.12", 
+        //         "0.0000031", "0.0000000000000009" };// "0.00007", "0.000123", "0.000001", "0", "99.9999019","10.00001",
         // };
         // double[] dbs = { 199.12,0.000123};//23.1415, 20.1, 29.12311 ,
         buff.head_sample(str_dbs);
